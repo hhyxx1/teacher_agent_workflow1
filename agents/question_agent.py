@@ -11,7 +11,7 @@ Prompt 设计策略：
 """
 
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from config import get_llm
 import json
 
