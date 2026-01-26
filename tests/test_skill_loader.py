@@ -5,7 +5,7 @@
 import os
 import tempfile
 import pytest
-from utils.skill_loader import load_skill, discover_skills
+from utils.skill_manager import load_skill, discover_skills
 
 
 # 创建测试技能文件

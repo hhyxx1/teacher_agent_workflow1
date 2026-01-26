@@ -22,7 +22,7 @@ def analyze_progress(score_history: list[dict], skill_title: str) -> dict:
         return {"status": "insufficient_data", "message": "至少需要2次测试才能分析进步趋势"}
 
     # 提取总分序列
-    scores = [r["total_score"] for r in records]
+    scores = [r["score"] for r in records]
     first = scores[0]
     latest = scores[-1]
     

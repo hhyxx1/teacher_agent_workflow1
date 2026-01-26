@@ -9,7 +9,9 @@ from utils.skill_manager import (
     search_skills,
     fork_skill,
     get_skill_detail,
-    rebuild_skill_index
+    rebuild_skill_index,
+    list_available_skills,
+    discover_skills
 )
 from agents.qa_agent import answer_student_question
 

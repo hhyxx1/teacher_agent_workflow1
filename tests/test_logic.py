@@ -19,11 +19,14 @@ class TestWorkflowLogic(unittest.TestCase):
         # 编译工作流应用
         self.app = create_workflow()
         self.student_id = "test_student_007"
-        self.skill_title = "同步与互斥教学案例"
+        self.skill_title = "process_synchronization_mutex"
 
-    @patch("agents.question_agent.generate_daily_questions")
-    @patch("agents.score_agent.grade_answers")
-    def test_full_workflow_flow(self, mock_grade, mock_gen):
+    @patch("graph.nodes.generate_daily_questions")
+    @patch("graph.nodes.grade_answers")
+    @patch("graph.nodes.load_daily_questions")
+    def test_full_workflow_flow(self, mock_load_questions, mock_grade, mock_gen):
+        # 模拟加载每日题目，返回 None 表示没有缓存
+        mock_load_questions.return_value = None
         """测试完整工作流的成功路径"""
         
         # 1. 模拟 Question Agent 返回 2 道题
@@ -62,43 +65,26 @@ class TestWorkflowLogic(unittest.TestCase):
         self.assertTrue(len(final_state["questions"]) > 0)
         print("\n✅ 成功路径测试通过：工作流顺利结束，未触发复测。")
 
-    @patch("agents.question_agent.generate_daily_questions")
-    @patch("agents.score_agent.grade_answers")
-    def test_retry_logic(self, mock_grade, mock_gen):
+    def test_retry_logic(self):
         """测试复测逻辑：低分时应标记 need_retry 为 True"""
+        from graph.nodes import decide_retry_node
         
-        # 1. 模拟 Question Agent
-        mock_gen.return_value = [{"id": 1, "question": "测试题", "answer": "A"}]
-
-        # 2. 模拟 Score Agent 返回低分 (30分，低于 RETRY_THRESHOLD=50)
-        mock_grade.return_value = {
-            "total_score": 30,
-            "weak_points": ["所有内容"],
-            "overall_feedback": "需要重修"
-        }
-
-        initial_state = {
-            "student_id": "low_score_student",
-            "skill_title": self.skill_title,
-            "skill_content": "",
-            "skill_metadata": {},
-            "questions": [],
-            "student_answers": [],
-            "grading_result": {},
-            "score_history": [],
-            "analysis_report": {},
+        # 测试低分情况（应触发复测）
+        low_score_state = {
+            "grading_result": {"total_score": 30},
             "need_retry": False
         }
-
-        # 执行
-        final_state = self.app.invoke(initial_state)
-
-        # 验证是否标记了需要复测
-        # 注意：在 invoke 中，如果触发了条件边回到 generate_questions，
-        # 它会再次执行直到遇到 END 或达到递归上限。
-        # 这里我们验证最终产生的 need_retry 状态。
-        self.assertEqual(final_state["grading_result"]["total_score"], 30)
-        self.assertTrue(final_state["need_retry"])
+        low_score_result = decide_retry_node(low_score_state)
+        self.assertTrue(low_score_result["need_retry"])
+        
+        # 测试高分情况（不应触发复测）
+        high_score_state = {
+            "grading_result": {"total_score": 60},
+            "need_retry": False
+        }
+        high_score_result = decide_retry_node(high_score_state)
+        self.assertFalse(high_score_result["need_retry"])
+        
         print("✅ 复测逻辑测试通过：检测到低分并正确设置了复测标志。")
 
 if __name__ == "__main__":

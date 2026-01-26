@@ -2,8 +2,10 @@
 QA Agent：处理学生提问，匹配相关Skill，生成回答
 """
 import os
-from langchain_core.prompts import ChatPromptTemplate
-from config import llm
+from langchain_core.prompts import ChatPromptTemplate     
+from config import get_llm
+
+llm = get_llm()
 from utils.skill_manager import search_skills, get_skill_detail
 import json
 
@@ -37,14 +39,25 @@ def generate_answer_with_skill(question: str, matched_skills: list, use_mock: bo
     """
     # 准备Skill内容
     skill_content_list = []
-    for skill in matched_skills:
-        detail = get_skill_detail(skill.get("标题"))
-        if detail:
+    
+    if use_mock:
+        # 模拟模式：直接使用传入的技能信息
+        for skill in matched_skills:
             skill_content_list.append({
-                "title": detail["title"],
-                "description": detail["metadata"].get("技能描述", ""),
-                "content": detail["content"][:1000]  # 截取前1000字避免token过多
+                "title": skill.get("标题", "未知技能"),
+                "description": skill.get("技能描述", ""),
+                "content": "这是一个模拟技能内容，用于测试。"
             })
+    else:
+        # 实际模式：调用get_skill_detail获取技能详情
+        for skill in matched_skills:
+            detail = get_skill_detail(skill.get("标题"))
+            if detail:
+                skill_content_list.append({
+                    "title": detail["title"],
+                    "description": detail["metadata"].get("技能描述", ""),
+                    "content": detail["content"][:1000]  # 截取前1000字避免token过多
+                })
 
     if not skill_content_list:
         return {
@@ -251,13 +264,24 @@ def answer_student_question(student_id: str, question: str, use_mock: bool = Fal
     # 1. 搜索匹配的Skill
     matched_skills = match_skill_for_question(question)
 
-    if not matched_skills:
+    if not matched_skills and not use_mock:
         return {
             "success": False,
             "error": "未找到相关Skill，请尝试其他关键词提问",
             "student_id": student_id,
             "question": question
         }
+    
+    # 2. 如果是模拟模式且没有匹配到技能，创建一个虚拟技能
+    if use_mock and not matched_skills:
+        matched_skills = [{
+            "标题": "操作系统基础",
+            "技能描述": "操作系统核心概念，包括进程管理、内存管理、文件系统等",
+            "关键词": "操作系统, 进程, 内存, 互斥, 同步",
+            "技能类型": "授课",
+            "适用场景": "基础教学",
+            "难度等级": "初级"
+        }]
 
     # 2. 基于Skill生成回答
     result = generate_answer_with_skill(question, matched_skills, use_mock=use_mock)

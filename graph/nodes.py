@@ -11,7 +11,7 @@
 """
 
 from .state import WorkflowState
-from utils.skill_loader import load_skill
+from utils.skill_manager import load_skill
 from utils.data_manager import save_daily_questions, load_daily_questions, save_score, load_score_history
 from utils.progress_analyzer import analyze_progress
 from agents.question_agent import generate_daily_questions
@@ -81,11 +81,14 @@ def grade_answers_node(state: WorkflowState) -> WorkflowState:
     result = grade_answers(state["questions"], state["student_answers"])
     
     # 保存单次得分记录，用于后续分析
-    save_score(
-        student_id=state["student_id"],
-        score_result=result,
-        skill_title=state["skill_title"]
-    )
+    score_record = {
+        "student_id": state["student_id"],
+        "skill": state["skill_title"],
+        "score": result["total_score"],
+        "weak_points": result["weak_points"],
+        "feedback": result["overall_feedback"]
+    }
+    save_score(score_record)
     return {**state, "grading_result": result}
 
 def simulate_student_input_node(state: WorkflowState) -> WorkflowState:
