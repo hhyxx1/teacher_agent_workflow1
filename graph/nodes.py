@@ -4,6 +4,7 @@ from utils.progress_analyzer import analyze_progress
 from agents.question_agent import generate_daily_questions
 from agents.score_agent import grade_answers
 from config import NUM_QUESTIONS_PER_DAY, RETRY_THRESHOLD
+from graph.state import WorkflowState
 
 # 节点1：加载Skill
 def load_skill_node(state: WorkflowState) -> WorkflowState:

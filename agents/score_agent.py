@@ -1,16 +1,16 @@
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from config import llm
 import json
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", """
 你是评分教师，对学生答案逐题评分，输出JSON：
-{
+{{
   "total_score": 0-100,
-  "details": [{"qid":1, "score":0-20, "correct_answer":"...", "feedback":"..."}],
+  "details": [{{"qid":1, "score":0-20, "correct_answer":"...", "feedback":"..."}}],
   "weak_points": ["知识点1", "知识点2"],
   "overall_feedback": "..."
-}
+}}
 每题满分20，{num}题总分100。
 """),
     ("user", "题目：{questions}\n学生答案：{answers}")

@@ -1,0 +1,15 @@
+# Teacher Agent Workflow - Dependencies
+# 教师智能体工作流依赖包
+
+# LangChain 核心
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-openai>=0.0.5
+
+# LangGraph 工作流
+langgraph>=0.0.20
+
+# 其他依赖（自动安装）
+# pydantic>=2.0.0
+# openai>=1.0.0
+# httpx>=0.25.0
