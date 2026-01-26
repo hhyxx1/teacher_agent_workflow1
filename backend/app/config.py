@@ -58,12 +58,13 @@ def get_llm():
 # =================================================================
 # 2. 路径配置 (FileSystem Paths)
 # =================================================================
-# 所有路径均相对于项目根目录
-SKILL_DIR = "skills"                    # 存放 Skill Markdown (教师编写的教学大纲)
-DATA_DIR = "data"                      # 数据根目录
-QUESTION_DIR = f"{DATA_DIR}/questions" # 存储每日为学生个性化生成的题目 (JSON)
-SCORE_DIR = f"{DATA_DIR}/scores"       # 存储学生的历史得分记录 (JSONL, 追加写入)
-LOG_DIR = "logs"                       # 日志目录
+# 所有路径均相对于 backend/app 目录
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+SKILL_DIR = os.path.join(BASE_PATH, "skills")
+DATA_DIR = os.path.join(BASE_PATH, "data")
+QUESTION_DIR = os.path.join(DATA_DIR, "questions")
+SCORE_DIR = os.path.join(DATA_DIR, "scores")
+LOG_DIR = os.path.join(BASE_PATH, "logs")
 
 # =================================================================
 # 3. 教学业务参数 (Education Business Parameters)
