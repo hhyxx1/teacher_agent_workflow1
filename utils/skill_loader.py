@@ -6,12 +6,21 @@ Skill 加载器
 
 import os
 import re
-from typing import Dict, List
+import yaml # 尝试导入 yaml 处理 frontmatter
+from typing import Dict, List, Optional, List
 from config import SKILL_DIR
+
+def list_available_skills(skill_dir: str = SKILL_DIR) -> List[str]:
+    """
+    列出所有可用的 Skill 名称（不含后缀）
+    """
+    if not os.path.exists(skill_dir):
+        return []
+    return [f[:-3] for f in os.listdir(skill_dir) if f.endswith(".md")]
 
 def load_skill(skill_title: str, skill_dir: str = SKILL_DIR) -> Dict:
     """
-    加载 Markdown 格式的 Skill 文件
+    加载并解析 Skill 文件
     
     支持两种格式：
     1. 标准 SKILL.md 格式（OpenSkills/Claude Skills）
@@ -101,9 +110,48 @@ def load_skill(skill_title: str, skill_dir: str = SKILL_DIR) -> Dict:
         "title": skill_title,
         "description": description,
         "metadata": metadata,
-        "content": content_part,
+        "content": content_body,
         "when_to_use": when_to_use
     }
+
+def discover_skills(skill_dir: str = SKILL_DIR) -> List[Dict]:
+    """
+    自动发现和加载目录中的所有技能
+    
+    Args:
+        skill_dir (str): 存放 Skill 文件的目录路径
+        
+    Returns:
+        List[Dict]: 技能列表
+    """
+    skills = []
+    
+    if not os.path.exists(skill_dir):
+        return skills
+    
+    # 遍历目录
+    for item in os.listdir(skill_dir):
+        item_path = os.path.join(skill_dir, item)
+        
+        if os.path.isdir(item_path):
+            # 标准格式：目录包含 SKILL.md 文件
+            skill_file = os.path.join(item_path, "SKILL.md")
+            if os.path.exists(skill_file):
+                try:
+                    skill_data = load_skill(item, skill_dir)
+                    skills.append(skill_data)
+                except Exception as e:
+                    print(f"加载技能 {item} 失败: {e}")
+        elif item.endswith(".md"):
+            # 传统格式：直接是 .md 文件
+            skill_name = item[:-3]  # 移除 .md 后缀
+            try:
+                skill_data = load_skill(skill_name, skill_dir)
+                skills.append(skill_data)
+            except Exception as e:
+                print(f"加载技能 {skill_name} 失败: {e}")
+    
+    return skills
 
 def discover_skills(skill_dir: str = SKILL_DIR) -> List[Dict]:
     """

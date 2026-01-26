@@ -22,12 +22,15 @@ def load_skill_node(state: WorkflowState) -> WorkflowState:
     """
     [节点 1: 加载技能]
     
-    前置条件: state["skill_title"] 必须存在且对应 skills/ 目录下的有效 .md 文件。
-    操作: 调用 skill_loader 解析 Markdown 文件的元数据和教学内容。
+    前置条件: state["skill_title"] 必须存在。
+    操作: 从本地 skills/ 目录加载对应的 Markdown 文件。
     后置条件: 填充 skill_content 和 skill_metadata。
     """
-    print(f"--- 正在加载 Skill: {state['skill_title']} ---")
-    skill_data = load_skill(state["skill_title"])
+    skill_title = state['skill_title']
+    print(f"--- 正在加载 Skill: {skill_title} ---")
+    
+    skill_data = load_skill(skill_title)
+
     return {
         **state,
         "skill_content": skill_data["content"],
