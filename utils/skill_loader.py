@@ -5,54 +5,68 @@ Skill 加载器
 
 import os
 import re
-from typing import Dict
+import yaml # 尝试导入 yaml 处理 frontmatter
+from typing import Dict, List, Optional
 from config import SKILL_DIR
+
+def list_available_skills(skill_dir: str = SKILL_DIR) -> List[str]:
+    """
+    列出所有可用的 Skill 名称（不含后缀）
+    """
+    if not os.path.exists(skill_dir):
+        return []
+    return [f[:-3] for f in os.listdir(skill_dir) if f.endswith(".md")]
 
 def load_skill(skill_title: str, skill_dir: str = SKILL_DIR) -> Dict:
     """
-    加载 Markdown 格式的 Skill 文件
+    加载并解析 Skill 文件
     
-    文件格式约定：
-    ------------------------
-    ## 元数据
-    - 键：值
-    ## 内容
-    这里是正文...
-    ------------------------
-    
-    Args:
-        skill_title (str): Skill 文件名（不含 .md 后缀）
-        skill_dir (str): 存放 Skill 文件的目录路径，默认为 config.py 中定义的目录
-        
-    Returns:
-        Dict: 包含 title, metadata, content 的字典
+    支持两种格式：
+    1. 带有 YAML Frontmatter 的标准格式
+    2. 传统的以 ## 元数据 为标记的格式
     """
     skill_path = os.path.join(skill_dir, f"{skill_title}.md")
     
     if not os.path.exists(skill_path):
-        raise FileNotFoundError(f"Skill 文件未找到: {skill_path}")
+        # 这里预留给未来的“自动生成”逻辑
+        raise FileNotFoundError(f"Skill '{skill_title}' 不存在。")
         
     with open(skill_path, "r", encoding="utf-8") as f:
-        content = f.read()
+        raw_content = f.read()
 
-    # 1. 提取元数据（## 元数据 到 ## 之间的内容）
     metadata = {}
-    meta_match = re.search(r"## 元数据\n(.*?)\n##", content, re.DOTALL)
-    if meta_match:
-        meta_lines = meta_match.group(1).strip().split("\n")
-        for line in meta_lines:
-            if line.startswith("- "):
-                # 解析 "- Key：Value" 格式
-                key_val = line[2:].split("：", 1)
-                if len(key_val) == 2:
-                    metadata[key_val[0].strip()] = key_val[1].strip()
+    content_body = raw_content
 
-    # 2. 提取正文内容（## 内容 之后的所有文本）
-    content_part = re.split(r"## 内容", content)[1].strip() if "## 内容" in content else ""
+    # 优先尝试解析 YAML Frontmatter (--- ... ---)
+    frontmatter_match = re.match(r"^---\n(.*?)\n---\n", raw_content, re.DOTALL)
+    if frontmatter_match:
+        yaml_text = frontmatter_match.group(1)
+        # 简单解析 YAML（避免强制依赖 PyYAML）
+        for line in yaml_text.split("\n"):
+            if ":" in line:
+                k, v = line.split(":", 1)
+                metadata[k.strip()] = v.strip().strip("[]'\"")
+        content_body = raw_content[frontmatter_match.end():].strip()
     
+    # 如果没有 Frontmatter，尝试解析传统的 ## 元数据 格式
+    if not metadata:
+        meta_match = re.search(r"## 元数据\n(.*?)\n##", raw_content, re.DOTALL)
+        if meta_match:
+            meta_lines = meta_match.group(1).strip().split("\n")
+            for line in meta_lines:
+                if line.startswith("- "):
+                    key_val = line[2:].split("：", 1)
+                    if len(key_val) == 2:
+                        metadata[key_val[0].strip()] = key_val[1].strip()
+        
+        # 提取正文内容
+        content_parts = re.split(r"## 内容", raw_content)
+        if len(content_parts) > 1:
+            content_body = content_parts[1].strip()
+
     return {
         "title": skill_title,
         "metadata": metadata,
-        "content": content_part
+        "content": content_body
     }
 
