@@ -64,7 +64,7 @@ if __name__ == "__main__":
     
     # 配置测试参数
     TEST_STUDENT = "student_001"
-    TEST_SKILL = "同步与互斥教学案例" # 提示：请确保 skills/ 目录下有该文件
+    TEST_SKILL = "process_synchronization_mutex" # 提示：请确保 skills/ 目录下有该文件
     
     try:
         # 执行工作流
