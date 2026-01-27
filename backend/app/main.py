@@ -2,6 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.student import qa as student_qa, survey as student_survey
 from app.api.teacher import dashboard, survey as teacher_survey
+from app.config import validate_config
+
+# 验证配置
+config_valid, config_error = validate_config()
+if not config_valid:
+    print(f"配置错误: {config_error}")
+    # 在开发环境中，即使配置无效也继续运行
+    # 在生产环境中，这里应该直接退出
 
 app = FastAPI(
     title="智能教学平台 API",
@@ -29,12 +37,13 @@ async def root():
     return {
         "message": "智能教学平台 API",
         "version": "1.0.0",
-        "docs": "/docs"
+        "docs": "/docs",
+        "config_status": "ok" if config_valid else "error"
     }
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "config_status": "ok" if config_valid else "error"}
 
 if __name__ == "__main__":
     import uvicorn
