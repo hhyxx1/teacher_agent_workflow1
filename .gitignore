@@ -24,3 +24,6 @@ Thumbs.db
 
 # 日志
 *.log
+
+# 其他项目
+teacher_agent_workflow1/
