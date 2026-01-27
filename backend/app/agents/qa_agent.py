@@ -4,13 +4,110 @@ QA Agent：处理学生提问，匹配相关Skill，生成回答
 import os
 from langchain_core.prompts import ChatPromptTemplate     
 from app.config import get_llm
-from app.utils.skill_manager import search_skills, get_skill_detail
+from app.utils.skill_manager import search_skills, get_skill_detail, create_skill, list_skills, get_skill_template
 import json
 
 
-llm = get_llm()
+def generate_new_skill_from_question(question: str, teacher_id: str = None) -> dict:
+    """
+    当找不到匹配Skill时，基于问题和现有Skill总结生成新Skill
+    
+    Args:
+        question: 学生提问
+        teacher_id: 教师ID（可选）
+    
+    Returns:
+        dict: 新生成的Skill信息或错误
+    """
+    try:
+        # 获取所有现有Skill作为上下文
+        all_skills = list_skills()
+        existing_content = ""
+        
+        if all_skills:
+            # 取前5个相关Skill作为上下文（避免token过多）
+            for skill in all_skills[:5]:
+                skill_detail = get_skill_detail(skill.get("标题"))
+                if skill_detail:
+                    existing_content += f"## {skill_detail['title']}\n"
+                    existing_content += f"描述：{skill_detail['metadata'].get('技能描述', '')}\n"
+                    existing_content += f"内容：{skill_detail['content'][:500]}...\n\n"
+        
+        # 使用LLM生成新Skill
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+你是一个专业的教学助手，需要基于学生的问题和现有教学Skill，创建一个新的教学Skill。
 
-def match_skill_for_question(question: str, top_k: int = 3) -> list:
+要求：
+1. 新Skill必须使用标准的MD格式
+2. 包含技能描述、适用场景、核心内容
+3. 确保内容准确、有教学价值
+4. 如果现有Skill相关，要整合相关知识
+5. 生成的Skill标题要简洁明了
+"""),
+            ("user", """
+学生问题：{question}
+
+现有相关教学Skill：
+{existing_skills}
+
+请基于以上信息，生成一个新的教学Skill，使用以下模板：
+
+{template}
+
+请填充模板内容，生成完整的Skill MD文本。
+""")
+        ])
+        
+        chain = prompt | llm
+        
+        # 获取Claude风格模板
+        template = get_skill_template("claude")
+        
+        response = chain.invoke({
+            "question": question,
+            "existing_skills": existing_content or "暂无相关Skill",
+            "template": template
+        })
+        
+        # 解析生成的Skill内容
+        generated_content = response.content.strip()
+        
+        # 提取标题（从第一行#开始）
+        lines = generated_content.split('\n')
+        title = ""
+        for line in lines:
+            if line.startswith('# '):
+                title = line[2:].strip()
+                break
+        
+        if not title:
+            return {
+                "success": False,
+                "error": "无法从生成内容中提取Skill标题"
+            }
+        
+        # 创建新Skill
+        create_result = create_skill(title, generated_content, teacher_id)
+        
+        if create_result["success"]:
+            return {
+                "success": True,
+                "skill_title": title,
+                "skill_content": generated_content,
+                "generated": True
+            }
+        else:
+            return {
+                "success": False,
+                "error": create_result.get("errors", ["创建Skill失败"])
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"生成新Skill时出错: {str(e)}"
+        }
     """
     根据学生问题搜索匹配的Skill
 
@@ -249,7 +346,7 @@ def _generate_mock_answer(question: str, skills: list) -> dict:
     }
 
 
-def answer_student_question(student_id: str, question: str, use_mock: bool = False) -> dict:
+def answer_student_question(student_id: str, question: str, use_mock: bool = False, auto_generate_skill: bool = True) -> dict:
     """
     完整的学生提问-回答工作流
 
@@ -257,6 +354,7 @@ def answer_student_question(student_id: str, question: str, use_mock: bool = Fal
         student_id: 学生ID
         question: 提问内容
         use_mock: 是否使用模拟模式
+        auto_generate_skill: 是否在找不到匹配Skill时自动生成新Skill
 
     Returns:
         dict: 包含回答、相关Skill、来源等信息
@@ -264,15 +362,45 @@ def answer_student_question(student_id: str, question: str, use_mock: bool = Fal
     # 1. 搜索匹配的Skill
     matched_skills = match_skill_for_question(question)
 
-    if not matched_skills and not use_mock:
-        return {
-            "success": False,
-            "error": "未找到相关Skill，请尝试其他关键词提问",
-            "student_id": student_id,
-            "question": question
-        }
+    # 2. 如果没有找到匹配的Skill，根据设置决定是否生成新Skill
+    if not matched_skills:
+        if auto_generate_skill and not use_mock:
+            # 尝试生成新Skill
+            generate_result = generate_new_skill_from_question(question)
+            
+            if generate_result["success"]:
+                # 重新搜索，现在应该能找到新生成的Skill
+                matched_skills = match_skill_for_question(question)
+                
+                if not matched_skills:
+                    # 如果还是找不到，用新生成的Skill手动构建
+                    matched_skills = [{
+                        "标题": generate_result["skill_title"],
+                        "技能描述": "AI自动生成的教学Skill",
+                        "关键词": question.replace(" ", ",").split(",")[:3],
+                        "技能类型": "授课",
+                        "适用场景": f"回答问题：{question[:50]}...",
+                        "难度等级": "中级",
+                        "_match_score": 8.0,
+                        "_match_details": ["AI自动生成"]
+                    }]
+            else:
+                # 生成失败，返回错误
+                return {
+                    "success": False,
+                    "error": f"未找到相关Skill，且自动生成失败: {generate_result.get('error', '未知错误')}",
+                    "student_id": student_id,
+                    "question": question
+                }
+        elif not use_mock:
+            return {
+                "success": False,
+                "error": "未找到相关Skill，请尝试其他关键词提问",
+                "student_id": student_id,
+                "question": question
+            }
     
-    # 2. 如果是模拟模式且没有匹配到技能，创建一个虚拟技能
+    # 3. 如果是模拟模式且没有匹配到技能，创建一个虚拟技能
     if use_mock and not matched_skills:
         matched_skills = [{
             "标题": "操作系统基础",
@@ -283,7 +411,7 @@ def answer_student_question(student_id: str, question: str, use_mock: bool = Fal
             "难度等级": "初级"
         }]
 
-    # 2. 基于Skill生成回答
+    # 4. 基于Skill生成回答
     result = generate_answer_with_skill(question, matched_skills, use_mock=use_mock)
 
     if not result["success"]:
@@ -294,8 +422,8 @@ def answer_student_question(student_id: str, question: str, use_mock: bool = Fal
             "question": question
         }
 
-    # 3. 返回完整结果
-    return {
+    # 5. 返回完整结果
+    response = {
         "success": True,
         "student_id": student_id,
         "question": question,
@@ -303,3 +431,10 @@ def answer_student_question(student_id: str, question: str, use_mock: bool = Fal
         "matched_skills": result["matched_skills"],
         "reference_count": len(result["matched_skills"])
     }
+    
+    # 如果生成了新Skill，在响应中标记
+    if auto_generate_skill and 'generate_result' in locals() and generate_result.get("success"):
+        response["new_skill_generated"] = True
+        response["generated_skill_title"] = generate_result["skill_title"]
+    
+    return response
