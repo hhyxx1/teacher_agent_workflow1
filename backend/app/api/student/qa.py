@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import List
-from app.agents.qa_agent import answer_student_question
+from app.graph.workflow import create_qa_workflow
 from app.models.qa import QuestionRequest as AgentQuestionRequest
 from app.models.qa import QuestionResponse as AgentQuestionResponse
 
@@ -27,17 +27,43 @@ async def ask_question(request: QuestionRequest, student_id: str = Query(..., de
     学生提交问题，获取AI回答
     """
     try:
-        # 使用新的 answer_student_question 函数处理学生提问
-        result = answer_student_question(student_id, request.question)
+        # 使用新的统一工作流处理学生提问
+        workflow = create_qa_workflow()
         
-        if result["success"]:
+        # 准备初始状态
+        initial_state = {
+            "student_id": student_id,
+            "skill_title": "",  # QA流程不需要特定技能
+            "question": request.question,
+            "matched_skills": [],
+            "answer": "",
+            "qa_result": {},
+            "new_skill_generated": False,
+            "generated_skill_title": "",
+            "skill_content": "",
+            "skill_metadata": {},
+            "questions": [],
+            "student_answers": [],
+            "grading_result": {},
+            "score_history": [],
+            "analysis_report": {},
+            "need_retry": False
+        }
+        
+        # 执行工作流
+        result = workflow.invoke(initial_state)
+        
+        # 处理工作流结果
+        if result.get("qa_result", {}).get("success"):
+            answer = result.get("answer", "")
             return QuestionResponse(
-                answer=result["answer"],
+                answer=answer,
                 question_id=f"qa_{student_id}_{hash(request.question) % 10000}"
             )
         else:
+            error_message = result.get("qa_result", {}).get("error", "未知错误")
             return QuestionResponse(
-                answer=f"抱歉，处理您的问题时出现了错误：{result.get('error', '未知错误')}",
+                answer=f"抱歉，处理您的问题时出现了错误：{error_message}",
                 question_id=f"qa_{student_id}_{hash(request.question) % 10000}"
             )
     except Exception as e:

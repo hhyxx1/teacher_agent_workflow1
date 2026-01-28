@@ -18,7 +18,11 @@ from .nodes import (
     simulate_student_input_node, # 引入模拟节点
     grade_answers_node, 
     analyze_progress_node, 
-    decide_retry_node
+    decide_retry_node,
+    process_qa_node, # 引入QA处理节点
+    match_skill_node, # 引入技能匹配节点
+    generate_skill_node, # 引入技能生成节点
+    generate_answer_node # 引入回答生成节点
 )
 
 def create_workflow():
@@ -39,6 +43,10 @@ def create_workflow():
     workflow.add_node("grade_answers", grade_answers_node)
     workflow.add_node("analyze_progress", analyze_progress_node)
     workflow.add_node("decide_retry", decide_retry_node)
+    workflow.add_node("process_qa", process_qa_node) # 注册QA处理节点
+    workflow.add_node("match_skill", match_skill_node) # 注册技能匹配节点
+    workflow.add_node("generate_skill", generate_skill_node) # 注册技能生成节点
+    workflow.add_node("generate_answer", generate_answer_node) # 注册回答生成节点
 
     # 3. 设置静态边 (Static Edges)
     # 这些步骤是顺序执行的，不依赖条件判断
@@ -62,4 +70,25 @@ def create_workflow():
 
     # 5. 编译工作流
     # 编译后会进行循环检测和结构验证
+    return workflow.compile()
+
+
+def create_qa_workflow():
+    """
+    创建并编译 QA 专用工作流
+    
+    Returns:
+        CompiledGraph: 一个可执行的图对象，通过 invoke(initial_state) 启动。
+    """
+    # 1. 初始化状态图，指定状态结构类型
+    workflow = StateGraph(WorkflowState)
+
+    # 2. 注册QA相关节点函数
+    workflow.add_node("process_qa", process_qa_node) # 注册QA处理节点
+
+    # 3. 设置边
+    workflow.add_edge(START, "process_qa")
+    workflow.add_edge("process_qa", END)
+
+    # 4. 编译工作流
     return workflow.compile()
